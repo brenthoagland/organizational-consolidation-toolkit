@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this toolkit, please cite the accompanying article."
+title: "Organizational Consolidation Toolkit"
+type: software
+authors:
+  - family-names: Hoagland
+    given-names: Brent
+  - family-names: Shepherd
+    given-names: Hana
+repository-code: "https://github.com/brenthoagland/organizational-consolidation-toolkit"
+abstract: >-
+  R toolkit implementing the concept-methods package for measuring
+  organizational consolidation: association rule mining, latent class analysis,
+  zero-inflated Poisson regression, and partial-order status-hierarchy modeling.
+# Volume/issue/DOI added when Sage assigns them.
+preferred-citation:
+  type: article
+  title: "Organizational Consolidation: How Organizations Reflect or Refract Societal Hierarchies"
+  authors:
+    - family-names: Hoagland
+      given-names: Brent
+    - family-names: Shepherd
+      given-names: Hana
+  journal: "American Sociological Review"
+  year: 2026
+  doi: "10.1177/00031224261475238"
+  notes: "In production; volume and issue forthcoming."

@@ -1,0 +1,266 @@
+---
+title: "Synthetic Illustration with the code"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    toc: true
+    latex_engine: xelatex
+---
+
+This document walks through the article's Empirical Illustration with
+the code for each step. It runs on the table `import-data.R` names,
+which as shipped is the synthetic low-consolidation file, standing in
+for the case study. Every value below comes from that file. Knit it in
+RStudio, or render it from the repository root with
+`rmarkdown::render("synthetic_walkthrough.Rmd", output_dir = "output")`.
+To see the same walkthrough on the moderate or high file, or on your
+own table, change `data_path` and knit again. The scripts in `methods/`
+run the same steps one section at a time. This document fits the local
+types itself and does not write methods/03's run of record, which
+methods/04 and 05 read; run methods/03 for that.
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(arules)
+library(poLCA)
+library(pscl)
+library(vcd)
+for (f in list.files("R_functions", pattern = "[.]R$", full.names = TRUE)) source(f)
+source("import-data.R")
+knitr::opts_chunk$set(message = TRUE, warning = FALSE)
+data <- oc_load_data()
+```
+
+The check the entry file runs on its own, here on the loaded table:
+
+```{r}
+check_data(data, oc_config)
+```
+
+# An initial assessment of organizational consolidation
+
+The article's initial assessment uses two complementary strategies:
+pairwise associations between each ascriptive status and each local
+criterion, and mutual information, which captures nonlinear
+dependencies. Each pair is measured with the statistic matched to its
+levels of measurement and reported as a 0–1 magnitude (Figure 4).
+
+```{r}
+set.seed(1234)
+cons <- measure_consolidation(data,
+                              ascriptive = oc_config$ascriptive,
+                              criteria   = oc_config$criteria)
+print(cons)
+```
+
+```{r fig-initial-assessment, fig.width=8.2, fig.height=4.5}
+print(plot_initial_assessment(cons, data))
+```
+
+# Surfacing salient attributes: association rule mining
+
+Association rule mining identifies if–then rules, if [Trait A + Trait
+B] then [Status Position X], that show how attributes convey meaning in
+relation. Its payoff is twofold: which attributes function as standalone
+cues and which gain meaning only in bundles, and where the same
+attribute carries different meanings in different pairings. Each
+nomination is one transaction, and the article's filter chain keeps
+rules with support of at least 0.05, confidence of at least 0.50, and
+lift above 1 (Appendix B).
+
+```{r}
+transactions <- noms_to_transactions(
+  data,
+  attributes = c(oc_config$ascriptive, oc_config$criteria),
+  outcomes   = oc_config$outcomes,
+  unit       = oc_config$arm_unit)
+rules <- apriori(
+  transactions,
+  parameter  = list(supp = 0.05, conf = 0.50, target = "rules", minlen = 2),
+  appearance = list(lhs = setdiff(colnames(transactions), oc_config$outcomes),
+                    rhs = oc_config$outcomes),
+  control    = list(verbose = FALSE))
+rules <- add_rule_measures(rules, transactions)
+rules <- subset(rules, lift > 1)
+cat(length(rules), "rules survive the filter chain.\n\n")
+for (o in oc_config$outcomes) {
+  cat("--", toupper(o), "--\n")
+  arules::inspect(head(rules_for(rules, o), 5), linebreak = FALSE)
+  cat("\n")
+}
+```
+
+The rule network (Figure 6): attribute values feed rule nodes, sized by
+conviction, and each rule points at the status position it predicts.
+`max_rules_per_position` in `import-data.R` caps what is drawn, as in
+methods/02.
+
+```{r fig-rule-network, fig.width=9, fig.height=6.5}
+plot_rules <- rules_to_draw(rules, oc_config$outcomes,
+                            cap = oc_config$max_rules_per_position)
+print(oc_provenance(plot_rule_network(
+  plot_rules, outcomes = oc_config$outcomes,
+  labels = oc_dummy_labels(data, c(oc_config$ascriptive, oc_config$criteria),
+                           oc_config$outcomes, oc_config$labels))))
+```
+
+# Identifying local types: latent class analysis
+
+Latent class analysis operationalizes local types, the prevalent
+clusters of local criteria that co-occur within an organization's
+population. Only the local criteria enter the analysis; race and gender
+stay outside it, so that whether the types overlap with or cut across
+the ascriptive statuses can be tested afterward. The class count is
+chosen from the fit statistics of Appendix C (Table C1); `import-data.R`
+sets `n_types = 4` for the synthetic file.
+
+```{r}
+set.seed(1234)
+fit_stats <- lca_fit_stats(data, oc_config$criteria, k_range = 1:6)
+print(as_table_c1(fit_stats), digits = 4, row.names = FALSE)
+```
+
+```{r fig-class-sweep, fig.width=6.5, fig.height=4}
+print(oc_provenance(plot_class_count_sweep(fit_stats)))
+```
+
+```{r}
+criteria <- oc_config$criteria
+manifest <- as.data.frame(lapply(data[criteria], as_lca_codes))   # each criterion coded 1..K
+f <- as.formula(paste("cbind(", paste(criteria, collapse = ", "), ") ~ 1"))
+set.seed(1234)
+LCA <- poLCA(f, manifest, nclass = oc_config$n_types, nrep = 10,
+             maxiter = 5000, tol = 1e-10, na.rm = FALSE, calc.se = TRUE,
+             graphs = FALSE, verbose = FALSE)
+LCA$assignment <- factor(LCA$predclass, levels = seq_len(oc_config$n_types))
+data$local_type <- LCA$assignment
+cat("Class shares:", paste(round(prop.table(table(LCA$assignment)), 2), collapse = "  "), "\n")
+cat("Entropy R^2:", round(entropy.R2(LCA), 2), "\n")
+```
+
+Whether local types overlap with or cut across ascriptive statuses is
+the most direct assessment of organizational consolidation: Cramér's V
+between type and status, and the mosaic of Figure 8, where color marks
+the cells that depart from independence.
+
+```{r}
+for (a in oc_config$ascriptive) {
+  cat(sprintf("Cramér's V, local_type x %s: %.3f\n",
+              a, cramers_v(data$local_type, data[[a]])))
+}
+```
+
+```{r fig-mosaic, fig.width=6.5, fig.height=4.5}
+draw_type_mosaic(data, oc_config$ascriptive[1])
+```
+
+# Local types as regression inputs
+
+Local types also serve as inputs for regression: using the LCA-derived
+profiles as predictors preserves the relational structure rule mining
+surfaced, rather than decomposing it into independent effects. The
+models are zero-inflated Poisson regressions of nomination counts on
+race, gender, their intersections, the local types, and the controls
+(Appendix D). Local types enter by proportional assignment, each
+member's posterior class probabilities. Appendix D's tables compare
+three models per status position: ascriptive statuses alone, local
+types alone, and both combined.
+
+```{r}
+type_probs <- setNames(as.data.frame(LCA$posterior[, -1, drop = FALSE]),
+                       paste0("type_prob", seq_len(oc_config$n_types)[-1]))
+data <- cbind(data, type_probs)
+ascriptive    <- oc_config$ascriptive
+intersections <- if (length(ascriptive) >= 2) combn(ascriptive, 2, paste, collapse = ":") else character(0)
+controls      <- oc_config$controls
+focal         <- oc_config$focal_outcome
+dist          <- oc_config$count_model
+options(contrasts = c("contr.treatment", "contr.treatment"))   # as Appendix D coded them
+data <- dummy_coded(data, c(ascriptive, intersections, names(type_probs), controls))
+three <- list(
+  "Ascrip."    = zeroinfl(reformulate(c(ascriptive, intersections, controls), focal),
+                          data = data, dist = dist, link = "logit"),
+  "Local Type" = zeroinfl(reformulate(c(names(type_probs), controls), focal),
+                          data = data, dist = dist, link = "logit"),
+  "Combined"   = zeroinfl(reformulate(c(ascriptive, intersections, names(type_probs), controls), focal),
+                          data = data, dist = dist, link = "logit"))
+knitr::kable(recognition_model_table(three, term_order = c(names(type_probs), ascriptive, controls)),
+             row.names = FALSE)
+```
+
+The combined model's predicted nominations for each intersectional
+profile are what the status hierarchy orders.
+
+```{r}
+profiles <- predicted_profiles(three$Combined, data,
+                               profile_vars = c(ascriptive, "local_type")) %>%
+  filter(n >= 3)
+print(head(profiles[order(-profiles$predicted), ], 5), digits = 3)
+```
+
+# Mapping intersectionality: partial order set modeling
+
+Posets show how context-specific combinations of attributes are ordered
+relative to the organization's ideal actor, the intersectional profile
+that receives maximum recognition. The article focuses on "respected".
+Profiles are arranged by how many high-value characteristics they share
+with the ideal, and the predicted nomination values set each profile's
+vertical position (Figure 9). The construction runs on the combined
+model above, one step per call, as `methods/05` does.
+
+Every position, each ascriptive status by local type, is valued by
+prediction: the model predicts each member's recognition as if they
+held that position, with their own controls, and the average is the
+position's value.
+
+```{r}
+data$local_type <- label_local_types(LCA$assignment, oc_config$type_labels)
+dimensions <- c(ascriptive, "local_type")
+positions  <- predict_positions(three$Combined, data, dimensions, names(type_probs))
+print(head(positions, 5), digits = 3)
+```
+
+The ideal actor is chosen among positions with at least three members,
+by the highest lower confidence bound; `rule = "max"` takes the highest
+point value, the article's rule.
+
+```{r}
+ideal <- choose_ideal(positions, rule = "conf")
+cat("Ideal actor:", paste(unlist(ideal$full), collapse = " / "), "\n")
+```
+
+Each dimension is then reduced to the ideal's level versus the rest,
+and each cell of the cube takes the pooled prediction of its positions.
+
+```{r}
+cube <- collapse_to_cube(three$Combined, positions, data, ideal)
+print(cube, digits = 3)
+```
+
+Two drawings follow: the formal structure, then the same cube with
+each cell at its predicted recognition.
+
+```{r fig-hierarchy-formal, fig.width=11, fig.height=6}
+formal <- status_hierarchy_poset(cube, layout = "formal", label_style = "match")
+print(oc_provenance(formal$plot))
+```
+
+```{r fig-hierarchy-values, fig.width=9, fig.height=6}
+values <- status_hierarchy_poset(cube, layout = "outcome", label_style = "match",
+                                 axis_limits = oc_config$poset_axis_limits)
+print(oc_provenance(values$plot +
+        labs(y = sprintf("Expected %s nominations", focal))))
+print(values$shape_metrics, digits = 2)
+```
+
+The article's diagnostic step after Figure 9: among members who share
+the ideal's local type, how many in each ascriptive profile were
+recognized, and how many would have been had that type been rewarded at
+the ideal's rate.
+
+```{r}
+print(unrecognized_members(three$Combined, data, ideal), digits = 3, row.names = FALSE)
+```

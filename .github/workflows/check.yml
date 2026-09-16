@@ -1,0 +1,41 @@
+# Runs the adopter path on a clean runner, so "it works on the synthetic
+# data" is a checked claim, not a promise: the data check, then the five
+# methods, on each of the three bundled regimes.
+name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.3.2'
+          use-public-rspm: true
+      - name: System libraries the package binaries link against
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libglpk40 libglpk-dev libgmp10 libgmp-dev \
+            libxml2 libxml2-dev libfontconfig1-dev libfreetype6-dev \
+            libharfbuzz-dev libfribidi-dev libpng-dev libtiff5-dev libjpeg-dev \
+            libcurl4-openssl-dev libssl-dev
+      - uses: r-lib/actions/setup-renv@v2
+      - name: Data check + five methods, three regimes
+        run: |
+          for regime in low moderate high; do
+            echo "== regime: $regime =="
+            sed -i "s|synthetic_[a-z]*_consolidation.rds|synthetic_${regime}_consolidation.rds|" import-data.R
+            rm -f output/local_types.rds output/synthetic_local_types.rds
+            Rscript import-data.R
+            Rscript methods/01-measure-consolidation/measure-consolidation.R
+            Rscript methods/02-association-rule-mining/mine-attribute-bundles.R
+            Rscript methods/03-latent-class-analysis/recover-local-types.R
+            Rscript methods/04-regression/predict-recognition.R
+            Rscript methods/05-status-hierarchy/build-status-hierarchy.R
+          done
+      - uses: r-lib/actions/setup-pandoc@v2
+      - name: Guided tour, rendered
+        run: |
+          sed -i "s|synthetic_[a-z]*_consolidation.rds|synthetic_low_consolidation.rds|" import-data.R
+          rm -f output/local_types.rds
+          Rscript -e 'rmarkdown::render("synthetic_walkthrough.Rmd", output_dir = "output")'
