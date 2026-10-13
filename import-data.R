@@ -157,7 +157,13 @@ oc_load_data <- function(cfg = oc_config) {
   } else {
     stop("data_path must be .rds or .csv: ", cfg$data_path)
   }
-  oc_apply_schema(data, cfg)
+  data <- oc_apply_schema(data, cfg)
+  # a member with no observed criterion stops the latent class fit early
+  # (methods/03); every method reads through this loader, so it stops
+  # here, with the member named (R_functions/check_data.R)
+  who <- members_without_criteria(data, cfg)
+  if (length(who) > 0) stop(no_criteria_message(who), call. = FALSE)
+  data
 }
 
 # Give each declared column the type its role requires, so a CSV and the

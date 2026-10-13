@@ -9,10 +9,9 @@ authors:
     given-names: Hana
 repository-code: "https://github.com/brenthoagland/organizational-consolidation-toolkit"
 abstract: >-
-  R toolkit implementing the concept-methods package for measuring
+  R toolkit implementing the article's methods for measuring
   organizational consolidation: association rule mining, latent class analysis,
   zero-inflated Poisson regression, and partial-order status-hierarchy modeling.
-# Volume/issue/DOI added when Sage assigns them.
 preferred-citation:
   type: article
   title: "Organizational Consolidation: How Organizations Reflect or Refract Societal Hierarchies"
@@ -23,5 +22,8 @@ preferred-citation:
       given-names: Hana
   journal: "American Sociological Review"
   year: 2026
+  volume: 91
+  issue: 5
+  start: 731
+  end: 764
   doi: "10.1177/00031224261475238"
-  notes: "In production; volume and issue forthcoming."

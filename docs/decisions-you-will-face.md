@@ -100,10 +100,21 @@ of members is usually too small to interpret.
   type. The assignments then line up one-to-one with your table, which
   methods/04 and 05 depend on.
 
+A member with some criteria missing is typed on the ones observed, so
+heavy missingness pulls the types toward the criteria that are present.
+Keeping or dropping such members is your decision.
+
 `na.rm = TRUE` would drop those members from the fit and leave fewer
 assignments than rows, so the later sections do not support it. If you
 want those members out, drop them from your data before methods/03, so
 every section sees the same members.
+
+A member with no observed criterion at all is a different case. poLCA
+does not handle the row: that member's posterior comes back all zero,
+and the fit stops after a few iterations, short of the solution it
+reaches without the row. The loader stops on such a member and names
+them, and the data check reports the same. Drop the member from the
+table, or record at least one criterion.
 
 ## Modal or proportional assignment?
 
@@ -200,6 +211,36 @@ Two automatic protections in methods/05:
   pools; the shape table records the rule and cutoff the ideal was
   chosen by.
 - The confidence-bound rule discounts a noisy peak by its uncertainty.
+
+Two checks on every recognition model, in methods/04 and 05:
+
+- A fitted model whose standard errors cannot be computed has no
+  confidence intervals. The script stops before anything is saved or
+  drawn, names the parameters the data cannot pin down and the
+  ascriptive-status cells in which the outcome does not vary, and lists
+  three remedies: an intercept-only zero part
+  (`y ~ predictors | 1`), the intersection terms dropped
+  (`intersections <- character(0)` in the script), or sparse levels
+  collapsed. On the synthetic low-consolidation file, random subsamples
+  of 60 members produced such a fit in most of 40 draws, subsamples of
+  100 in about a third of 20, and subsamples of 150 or 200 in none of 20.
+- A coefficient with a standard error above 50 on the log or logit scale
+  is one the data cannot pin down, usually a zero-part term for a cell
+  where every known count is nonzero. The script notes it and continues:
+  the predicted positions stay usable, because the prediction is flat at
+  that limit, but the exponentiated coefficient in the model tables is
+  not an estimate. The bundled high-consolidation file has such terms.
+
+With `count_model = "negbin"`, a dispersion that runs to its Poisson
+limit is noted the same way: the counts carry no overdispersion beyond
+the zero inflation, and `"poisson"` fits the same model with one
+parameter fewer.
+
+Method 03 notes a solution with more parameters than members (negative
+residual degrees of freedom in the class-count sweep): its response
+probabilities sit at 0 or 1 in many cells and its entropy reads as
+near-perfect separation, none of it supported by the data. Choose fewer
+classes from the sweep.
 
 ## Defaults you can leave alone
 

@@ -9,7 +9,7 @@ the table before running the methods.
 |---|---|---|
 | identifier | id | one unique value per member |
 | ascriptive statuses (one or more) | nominal | the externally imposed categories, e.g. race, gender. Name each one's reference category (the level the regressions compare against, by convention the dominant one) in `import-data.R`'s `reference` block |
-| local criteria (one or more) | categorical or ordinal | the context-specific attributes evaluators use. A criterion is treated as nominal unless declared otherwise: list an ordinal criterion with its levels, low to high, in the `ordinal` block; name a continuous criterion with its number of bins in the `discretize` block, and it is binned at load and treated as ordinal |
+| local criteria (one or more) | categorical or ordinal | the context-specific attributes evaluators use. A criterion is treated as nominal unless declared otherwise: list an ordinal criterion with its levels, low to high, in the `ordinal` block; name a continuous criterion with its number of bins in the `discretize` block, and it is binned at load and treated as ordinal. Every member needs at least one observed criterion; a member with none stops the loader (the latent class analysis cannot place that member, and the fit stops early with the member in the table) |
 | status-position outcomes (one or more) | count | how much recognition each member received for a status position, e.g. the number of nominations as "respected" |
 | controls (optional) | any | exposure or selection adjustments |
 

@@ -2,10 +2,10 @@
 
 This repository accompanies the article "Organizational Consolidation:
 How Organizations Reflect or Refract Societal Hierarchies" (Hoagland and
-Shepherd, forthcoming in *American Sociological Review*) and provides its
-concept-methods package—association rule mining (ARM), latent class
-analysis (LCA), and partial order set modeling (posets)—as analytic tools
-you can adapt to your organizational setting. The article defines
+Shepherd 2026, *American Sociological Review* 91(5):731–64) and provides its
+methods—association rule mining (ARM), latent class analysis (LCA), and
+partial order set modeling (posets)—as a toolkit of R scripts you can
+adapt to your organizational setting. The article defines
 organizational consolidation as "the degree to which ascriptive
 statuses—race, gender, class—align with the local criteria that
 organizational actors use when evaluating one another—skills,
@@ -25,7 +25,7 @@ The article's Figure 5 shows how the methods work together—moving from
 individual attributes, to types of people, to whole persons in relation
 to each other:
 
-![Figure 5, adapted: the concept-methods package with the repository's section numbers](images/figure5_with_sections.png)
+![Figure 5, adapted, with the repository's section numbers](images/figure5_with_sections.png)
 
 The numbered folders in [`methods/`](methods) follow the figure. [01](methods/01-measure-consolidation) is the initial
 assessment—the dashed link between local criteria and ascriptive
@@ -49,7 +49,7 @@ their own.
 | [`images/`](images) | the figures in this README; five of them are method outputs |
 | [`output/`](output) | the figures and tables the methods save; `run_name` in `import-data.R` keeps separate runs apart |
 
-## The Concept-Methods Package
+## The Methods
 
 The sections below keep the order of the article's Empirical
 Illustration.
@@ -150,22 +150,16 @@ runs, set `run_name` in `import-data.R` so each keeps its own outputs, and
 
 ## Installation
 
-The packages the toolkit uses are listed in [`dependencies.R`](dependencies.R). Install
-them however you usually do—or install the exact versions we used. The
-lockfile (`renv.lock`) is here but the `renv` package is not bundled, so
-install it first, then restore from the repo root:
+Install the packages listed in [`dependencies.R`](dependencies.R);
+`source("dependencies.R")` installs any you are missing. To use the exact
+versions the repository was built with instead, install `renv` and run
+`renv::restore()` from the repo root.
 
-```r
-install.packages("renv")   # if you do not already have it
-renv::restore()            # offers to activate the project first: say yes
-```
-
-`renv::restore()` installs the pinned versions into a project library and,
-once the project is activated, R uses that library whenever it starts in
-this folder.
-
-Knitting the walkthrough (below) also needs **Pandoc**. RStudio ships
-it; outside RStudio, install Pandoc (`pandoc.org/installing`).
+On macOS, saving the figures needs **XQuartz** (`xquartz.org`, or
+`brew install --cask xquartz`): the scripts save them with `cairo_pdf`,
+which in CRAN's R depends on XQuartz. Knitting the walkthrough (below)
+also needs **Pandoc**. RStudio ships it; outside RStudio, install Pandoc
+(`pandoc.org/installing`).
 
 ## Synthetic Illustration with the code
 
@@ -224,7 +218,9 @@ source("methods/05-status-hierarchy/build-status-hierarchy.R")
 Your file does not need to be pristine. When the checking script finds
 something that breaks the requirements, it stops and says what to fix;
 when it finds something merely worth knowing about—missing values,
-small groups—it warns you and continues.
+small groups—it warns you and continues. Members with missing criteria
+stay in the latent class analysis, typed on what is observed; whether to
+keep or drop them is your decision, and the decisions guide covers it.
 
 The methods leave two decisions to you, and you make both in
 `import-data.R`. The first, at methods/03, is how many local types your
@@ -250,9 +246,17 @@ covers each one, with what the article's case study chose.
 - **`poLCA` will not install** — it needs a working compiler toolchain on
   some platforms; on macOS install the Xcode command-line tools
   (`xcode-select --install`) and retry.
+- **"failed to load cairo DLL"** — on macOS, the figures are saved with
+  `cairo_pdf`, which needs XQuartz. The scripts run on without it and
+  save no PDF figures. Install XQuartz (`brew install --cask xquartz`,
+  or from `xquartz.org`), restart R, and rerun.
 - **`rmarkdown::render()` fails with a Pandoc error** — rendering needs
   Pandoc. Knit inside RStudio, which bundles it, or install Pandoc
   (`pandoc.org/installing`).
+- **`?measure_consolidation` finds no help page** — the toolkit is a set
+  of scripts, not an installed package. Each function is documented in
+  the comment block above its definition in `R_functions/`; in RStudio,
+  put the cursor on the name and press F2 to jump there.
 - **"no saved local types match this data"** — run `methods/03` first;
   it saves the run of record the other sections use. The message
   is a safeguard, not an error: it prevents one dataset's classes from
@@ -260,14 +264,38 @@ covers each one, with what the article's case study chose.
 - **A different class count or class numbering than the bundled
   examples** — expected. Class numbers are specific to your run of
   record; interpret the class-probability table before naming anything.
+- **"member(s) have every criterion missing"** — a member with no
+  observed criterion stops the loader: the latent class analysis cannot
+  place them, and with them in the table the fit stops early. Drop those
+  members, or record at least one criterion for each.
+- **"standard errors cannot be computed"** — the recognition model has a
+  race × gender cell in which the outcome does not vary (every count
+  zero, or none), which small samples produce often. The message names
+  the cells and three remedies; see
+  [`docs/decisions-you-will-face.md`](docs/decisions-you-will-face.md),
+  Small cells.
+
+## Questions and corrections
+
+Please send questions, concerns, or corrections to
+brent.hoagland@rutgers.edu. We will do our best to respond and to update
+the repository accordingly.
+
+## Acknowledgments
+
+We thank the following people for their generous comments and
+suggestions on this repository:
+
+- YJ Chae ([GitHub](https://github.com/yjin-chae),
+  [Google Scholar](https://scholar.google.com/citations?user=TBUcwGMAAAAJ&hl=en))
 
 ## Citing
 
 If you use the toolkit, please cite the article:
 
-> Hoagland, Brent, and Hana Shepherd. Forthcoming. "Organizational
+> Hoagland, Brent, and Hana Shepherd. 2026. "Organizational
 > Consolidation: How Organizations Reflect or Refract Societal
-> Hierarchies." *American Sociological Review*.
+> Hierarchies." *American Sociological Review* 91(5):731–64.
 > https://doi.org/10.1177/00031224261475238
 
 The code is MIT licensed ([`LICENSE`](LICENSE)); [`CITATION.cff`](CITATION.cff) contains the same
@@ -278,6 +306,7 @@ citation in machine-readable form.
 The analyses were designed, written, and run by the authors for the
 article, prior to and independent of AI assistance. AI tooling
 (Anthropic's Claude) was then used to help convert that original
-codebase into this public-facing companion repository—reorganizing,
-documenting, and packaging the code for reuse. The methods, analytic
-decisions, and results are the authors' own.
+codebase into this public-facing companion repository—reorganizing the
+code into the method scripts and the functions they call, and
+documenting it for reuse. The methods, analytic decisions, and results
+are the authors' own.

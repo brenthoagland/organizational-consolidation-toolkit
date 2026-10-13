@@ -64,8 +64,14 @@ models <- map(set_names(oc_config$outcomes), function(out) {
   # an ascriptive cell with no member whose count is known cannot carry
   # an intersection term; the check names it before the fit
   check_ascriptive_cells(data, ascriptive, out)
-  zeroinfl(reformulate(spec, response = out), data = data, dist = dist,
-           link = "logit")
+  m <- zeroinfl(reformulate(spec, response = out), data = data, dist = dist,
+                link = "logit")
+  # a fit can report convergence and still have standard errors that
+  # cannot be computed: the check stops and names the parameters and
+  # cells. It notes, and continues past, coefficients the data cannot pin
+  # down and a negative binomial dispersion at its Poisson limit.
+  check_recognition_fit(m, out, data, ascriptive)
+  m
 })
 iwalk(models, ~ if (!isTRUE(.x$converged)) warning(
   "zeroinfl did not converge for `", .y, "` -- on sparse data try dropping ",
@@ -100,6 +106,7 @@ for (out in oc_config$outcomes) {
     "Ascrip."    = zeroinfl(reformulate(spec_ascriptive, response = out), data = data, dist = dist, link = "logit"),
     "Local Type" = zeroinfl(reformulate(spec_types, response = out), data = data, dist = dist, link = "logit"),
     "Combined"   = models[[out]])
+  iwalk(three[1:2], ~ check_recognition_fit(.x, out, data, ascriptive, label = .y))
   tab <- recognition_model_table(
     three, term_order = c(type_terms, ascriptive, oc_config$controls))
   cat(sprintf("\n%s: zero-inflated %s, exponentiated coefficients\n", out, dist))
@@ -119,6 +126,7 @@ for (out in oc_config$outcomes) {
       reformulate(c(ascriptive, intersections, "local_type", oc_config$controls),
                   response = out),
       data = data, dist = dist, link = "logit")
+    check_recognition_fit(m_modal, out, data, ascriptive, label = "modal assignment")
     both <- merge(
       predicted_profiles(models[[out]], data, profile_vars),
       predicted_profiles(m_modal, data, profile_vars),

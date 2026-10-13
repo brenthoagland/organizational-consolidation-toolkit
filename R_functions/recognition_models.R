@@ -6,6 +6,10 @@
 # before the fit and read the models after it.
 #
 #   dummy_coded()              predictors as treatment-coded factors
+#   check_ascriptive_cells()   the empty-cell stop before a fit
+#   check_recognition_fit()    standard errors that cannot be computed (a stop),
+#                              very large ones and a negbin dispersion at the
+#                              Poisson limit (notes)
 #   predicted_profiles()       predicted recognition per intersectional profile
 #   recognition_model_table()  the three-model comparison of Tables D3-D5
 #   unrecognized_members()     the diagnostic step after Figure 9: who meets
@@ -142,6 +146,101 @@ check_ascriptive_cells <- function(data, ascriptive, outcome) {
       "character(0)` in this script."),
       outcome, if (length(empty) == 1) "this cell" else "these cells",
       paste(empty, collapse = "; ")), call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Check a fitted recognition model before its results are used.
+#'
+#' pscl::zeroinfl() can report convergence and still return a model whose
+#' standard errors cannot be computed. The check stops in that case,
+#' before anything is saved, and names the parameters the data cannot
+#' pin down, the ascriptive-status cells in which the outcome does not
+#' vary, and three remedies. It notes, and continues past, two weaker
+#' signs of thin data: a coefficient with a very large standard error,
+#' and a negative binomial dispersion at its Poisson limit.
+#'
+#' @param model      a fitted pscl::zeroinfl() model
+#' @param outcome    the status-position count it models
+#' @param data       the members it was fit on
+#' @param ascriptive the ascriptive status columns
+#' @param label      optional name of the model, for the messages
+#' @param se_limit   the standard error above which a coefficient is noted
+#' @return invisibly TRUE; stops in case 1
+check_recognition_fit <- function(model, outcome, data, ascriptive, label = NULL,
+                                  se_limit = 50) {
+  which_model <- if (is.null(label)) sprintf("the recognition model for `%s`", outcome)
+                 else sprintf("the \"%s\" model for `%s`", label, outcome)
+  v <- tryCatch(suppressWarnings(stats::vcov(model)), error = function(e) NULL)
+  usable <- !is.null(v) && all(is.finite(diag(v))) && all(diag(v) >= 0)
+
+  # the ascriptive-status cells in which the outcome does not vary
+  known <- data[!is.na(data[[outcome]]), , drop = FALSE]
+  cells <- character(0)
+  if (length(ascriptive) > 0 && nrow(known) > 0) {
+    key <- interaction(known[ascriptive], sep = " x ", drop = TRUE)
+    n_cell <- table(key)
+    z_cell <- tapply(known[[outcome]] == 0, key, sum)
+    bad <- names(n_cell)[z_cell == 0 | z_cell == n_cell]
+    cells <- sprintf("%s (%d of %d zero)", bad, z_cell[bad], n_cell[bad])
+  }
+  cell_text <- if (length(cells) > 0) {
+    paste0("Ascriptive-status cells in which the outcome does not vary (every ",
+           "count zero, or none): ", paste(cells, collapse = "; "), ".")
+  } else {
+    paste0("The outcome varies in every ascriptive-status cell; the thin level ",
+           "may sit in a control or a local type.")
+  }
+  remedies <- sprintf(paste0(
+    "Remedies: give the zero-inflation part only an intercept (formula ",
+    "`%s ~ predictors | 1`), drop the intersection terms (`intersections <- ",
+    "character(0)` in this script), or collapse sparse levels."), outcome)
+
+  if (!usable) {
+    nm <- names(stats::coef(model))
+    H  <- model$optim$hessian
+    involved <- character(0)
+    if (!is.null(H) && all(is.finite(H))) {
+      if (length(nm) < ncol(H)) nm <- c(nm, "log(theta)")   # negbin: the dispersion row
+      e <- eigen(H, symmetric = TRUE)
+      weak <- which(abs(e$values) < 1e-6 * max(abs(e$values)))
+      for (k in weak) involved <- c(involved, nm[abs(e$vectors[, k]) > 0.3])
+    }
+    involved <- unique(involved)
+    shown <- paste(utils::head(involved, 8), collapse = ", ")
+    if (length(involved) > 8) shown <- paste0(shown, ", and ", length(involved) - 8, " more")
+    stop(sprintf(paste0(
+      "%s: its standard errors cannot be computed, so it has no confidence ",
+      "intervals and the steps that follow cannot run. Parameters the data ",
+      "cannot pin down: %s. %s %s"),
+      which_model,
+      if (nzchar(shown)) shown else "(not recoverable from the Hessian)",
+      cell_text, remedies), call. = FALSE)
+  }
+
+  se <- sqrt(diag(v))
+  names(se) <- names(stats::coef(model))[seq_along(se)]
+  big <- se[is.finite(se) & se > se_limit]
+  if (length(big) > 0) {
+    message(sprintf(paste0(
+      "NOTE: %s has %d coefficient(s) the data cannot pin down (standard error ",
+      "above %g: %s). Read their exponentiated values in the tables as limits, ",
+      "not estimates; the predicted positions stay usable. %s"),
+      which_model, length(big), se_limit,
+      paste(sprintf("%s (SE %.0f)", names(big), big), collapse = ", "),
+      remedies))
+  }
+
+  if (identical(model$dist, "negbin") && !is.null(model$theta)) {
+    se_lt <- model$SE.logtheta
+    if (model$theta > 1e4 || is.null(se_lt) || !is.finite(se_lt) || se_lt > 5) {
+      message(sprintf(paste0(
+        "NOTE: %s was fit as a negative binomial, but its dispersion ran to the ",
+        "Poisson limit (theta = %.3g). The counts show no extra spread beyond the ",
+        "zero inflation; count_model = \"poisson\" in import-data.R fits the same ",
+        "model with one parameter fewer."),
+        which_model, model$theta))
+    }
   }
   invisible(TRUE)
 }

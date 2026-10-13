@@ -260,6 +260,34 @@ oc_local_types <- function(data, cfg = oc_config, need_probs = FALSE,
   rec
 }
 
+#' A note when the sample cannot support the selected solution.
+#'
+#' poLCA's residual degrees of freedom are the smaller of the member count
+#' and the number of response patterns, minus the parameter count. Below
+#' zero, the fit has more parameters than members: many response
+#' probabilities sit at 0 or 1, the entropy and classification error then
+#' read as near-perfect separation, and none of it is supported by the
+#' data. The class-count sweep (Table C1) prints the same column, so the
+#' condition is visible before a solution is chosen. Boundary
+#' probabilities on their own are not a fault: the bundled files have
+#' them in 18 to 40 percent of cells at four classes.
+#'
+#' @param fit a poLCA fit
+#' @return the note as a string, or NULL when the fit has residual degrees
+#'   of freedom to spare
+lca_support_note <- function(fit) {
+  if (is.null(fit$resid.df) || fit$resid.df >= 0) return(NULL)
+  p <- unlist(fit$probs)
+  at_edge <- sum(p < 1e-6 | p > 1 - 1e-6)
+  sprintf(paste0(
+    "NOTE: %d parameters for %d members (residual degrees of freedom %d): the ",
+    "sample cannot support a %d-class solution. %d of %d response probabilities ",
+    "sit at 0 or 1, and the entropy and classification lines overstate the ",
+    "separation. Choose fewer classes from the sweep, or read ",
+    "docs/decisions-you-will-face.md, Small cells"),
+    fit$npar, fit$N, fit$resid.df, length(fit$P), at_edge, length(p))
+}
+
 #' Table C2: average posterior probabilities by modal class.
 #'
 #' Rows are the modal (assigned) classes; each row holds the posterior

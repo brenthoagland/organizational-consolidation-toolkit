@@ -12,4 +12,4 @@ pkgs <- c(
   "rmarkdown", "knitr",      # knit synthetic_walkthrough.Rmd
   "renv"
 )
-# install.packages(setdiff(pkgs, rownames(installed.packages())))
+install.packages(setdiff(pkgs, rownames(installed.packages())))

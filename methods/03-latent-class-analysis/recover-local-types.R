@@ -96,6 +96,12 @@ if (oc_config$n_types >= 2) {
   # more (Bakk and Vermunt 2016; Bonikowski and DiMaggio 2016).
   if (LCA$entropy_r2 < 0.8) message(sprintf(
     "NOTE: entropy R^2 = %.2f: classes weakly separated; see the note in this script", LCA$entropy_r2))
+  # The opposite failure: more parameters than members (negative residual
+  # degrees of freedom in the sweep above). The response probabilities
+  # then sit at 0 or 1 in many cells and the two lines below read as
+  # near-perfect separation that the data do not support.
+  support <- lca_support_note(LCA)
+  if (!is.null(support)) message(support)
 
   # Response probabilities by class: for each class, criterion, and
   # level, the probability of that response (poLCA's item-response

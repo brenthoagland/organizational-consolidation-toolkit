@@ -73,6 +73,12 @@ check_data <- function(data = oc_load_data(), cfg = oc_config) {
       advise("%s has %d missing value(s), left as NA", v, na_n)
   }
 
+  # A member with no observed criterion is a problem, not an advisory:
+  # the loader stops on it too, and members_without_criteria() below is
+  # the one test both use
+  who <- members_without_criteria(data, cfg)
+  if (length(who) > 0) note("%s", no_criteria_message(who))
+
   for (v in intersect(c(cfg$ascriptive, cfg$criteria), names(data))) {
     x <- data[[v]]
     if (is.numeric(x) && length(unique(x[!is.na(x)])) > 12)
@@ -105,6 +111,34 @@ check_data <- function(data = oc_load_data(), cfg = oc_config) {
          call. = FALSE)
   }
   invisible(list(problems = problems, advisories = advisories))
+}
+
+# members_without_criteria(): the members with no observed criterion, by
+# id (row numbers when the id column is absent). Such a member gives the
+# latent class analysis nothing, and poLCA (na.rm = FALSE) does not
+# handle the row: its likelihood is the same constant in every class, at
+# the largest double the machine holds, so the posterior denominator
+# overflows, the member's posterior comes back all zero, and the EM loop
+# stops after a few iterations, short of the solution it reaches without
+# the row. The loader (import-data.R) and check_data() both stop on it,
+# with the same message.
+members_without_criteria <- function(data, cfg = oc_config) {
+  crit <- intersect(cfg$criteria, names(data))
+  if (length(crit) == 0 || nrow(data) == 0) return(character(0))
+  none <- rowSums(!is.na(data[crit])) == 0
+  if (!any(none)) return(character(0))
+  if (cfg$id %in% names(data)) as.character(data[[cfg$id]][none])
+  else paste("row", which(none))
+}
+
+no_criteria_message <- function(who) {
+  shown <- paste(utils::head(who, 10), collapse = ", ")
+  if (length(who) > 10) shown <- paste0(shown, ", ...")
+  sprintf(paste0("%d member(s) have every criterion missing (%s). The latent ",
+                 "class analysis cannot place them, and with them in the table ",
+                 "the fit stops early (methods/03). Drop these members, or ",
+                 "record at least one criterion for each"),
+          length(who), shown)
 }
 
 # print_resolved_schema(): what the declarations made of each column, in

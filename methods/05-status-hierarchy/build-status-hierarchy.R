@@ -66,6 +66,11 @@ dist <- if (is.null(oc_config$count_model)) "poisson" else oc_config$count_model
 check_ascriptive_cells(data, ascriptive, focal)
 model <- zeroinfl(reformulate(spec, response = focal), data = data, dist = dist,
                   link = "logit")
+# a fit can report convergence and still have standard errors that
+# cannot be computed: the check stops and names the parameters and
+# cells. It notes, and continues past, coefficients the data cannot pin
+# down and a negative binomial dispersion at its Poisson limit.
+check_recognition_fit(model, focal, data, ascriptive)
 if (!isTRUE(model$converged)) warning(
   "zeroinfl did not converge for `", focal, "` -- on sparse data try dropping ",
   "interactions, collapsing thin factor levels, or simplifying the zero ",
